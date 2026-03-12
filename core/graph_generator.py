@@ -12,16 +12,24 @@ from collections import Counter
 # 导入知识卡片生成器
 import sys
 sys.path.insert(0, str(Path(__file__).parent))
-from knowledge_card_generator import KnowledgeCardGenerator
-from keyword_extractor import KeywordExtractor
+
+try:
+    from knowledge_card_generator import KnowledgeCardGenerator
+    from keyword_extractor import KeywordExtractor
+except ImportError:
+    # 测试模式
+    KnowledgeCardGenerator = None
+    KeywordExtractor = None
 
 
 class GraphGenerator:
     """知识图谱生成器"""
     
     def __init__(self):
-        self.generator = KnowledgeCardGenerator()
-        self.extractor = KeywordExtractor()
+        if KnowledgeCardGenerator:
+            self.generator = KnowledgeCardGenerator()
+        if KeywordExtractor:
+            self.extractor = KeywordExtractor()
     
     def extract_keywords(self, text: str, top_n: int = 50) -> List[str]:
         """提取关键词 (TF-IDF + TextRank)"""

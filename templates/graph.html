@@ -6,6 +6,15 @@
     <title>知识图谱可视化</title>
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        // 检查 ECharts 是否加载成功
+        if (typeof echarts === 'undefined') {
+            console.error('❌ ECharts 加载失败！');
+            document.write('<div style="color:red;padding:20px;">❌ ECharts 加载失败，请检查网络连接</div>');
+        } else {
+            console.log('✅ ECharts 加载成功，版本:', echarts.version);
+        }
+    </script>
     <style>
         #graph-container {
             width: 100%;
@@ -247,15 +256,46 @@
         
         // 导出图片
         document.getElementById('exportBtn').addEventListener('click', () => {
-            const url = chart.getDataURL({
-                type: 'png',
-                pixelRatio: 2,
-                backgroundColor: '#fff'
-            });
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'knowledge-graph.png';
-            a.click();
+            // 检查是否有数据
+            if (!graphData.nodes || graphData.nodes.length === 0) {
+                alert('⚠️ 先生成图谱再导出！');
+                return;
+            }
+            
+            // 确保图表已渲染
+            if (!chart) {
+                alert('❌ 图表未初始化');
+                return;
+            }
+            
+            try {
+                // 等待图表渲染完成
+                setTimeout(() => {
+                    const url = chart.getDataURL({
+                        type: 'png',
+                        pixelRatio: 3,  // 更高分辨率
+                        backgroundColor: '#fff',
+                        excludeComponents: ['toolbox']
+                    });
+                    
+                    if (!url || url.length < 100) {
+                        alert('❌ 导出失败：图片数据为空');
+                        return;
+                    }
+                    
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `knowledge-graph-${Date.now()}.png`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    
+                    console.log('✅ 导出成功');
+                }, 500);  // 等待 500ms 确保渲染完成
+            } catch (error) {
+                console.error('导出错误:', error);
+                alert('❌ 导出失败：' + error.message);
+            }
         });
         
         // 窗口大小变化时重绘

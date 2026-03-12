@@ -339,17 +339,29 @@
                 
                 if (result.success) {
                     // 存储所有图谱类型
-                    allGraphData = result.data;
-                    const stats = result.stats;
+                    allGraphData = result.data || {};
+                    const stats = result.stats || {};
+                    
+                    console.log('所有图谱数据:', Object.keys(allGraphData));
                     
                     // 根据当前选择的类型显示
                     const graphType = document.getElementById('graphType').value;
-                    graphData = allGraphData[graphType] || allGraphData.citation;
+                    graphData = allGraphData[graphType];
                     
-                    console.log('图谱数据 - 节点:', graphData.nodes.length, '边:', graphData.links.length);
-                    renderGraph(graphData);
-                    updateStats(stats[graphType] || stats.citation);
-                    document.getElementById('stats').innerHTML += '<div class="mt-2 text-green-600">✅ 已加载 5 篇经典深度学习论文示例</div>';
+                    if (!graphData) {
+                        console.log('图谱类型不存在，使用引用图谱');
+                        graphData = allGraphData.citation;
+                    }
+                    
+                    console.log('图谱数据 - 节点:', graphData?.nodes?.length, '边:', graphData?.links?.length);
+                    
+                    if (graphData && graphData.nodes) {
+                        renderGraph(graphData);
+                        updateStats(stats[graphType] || stats.citation || {});
+                        document.getElementById('stats').innerHTML += '<div class="mt-2 text-green-600">✅ 已加载 5 篇经典深度学习论文示例</div>';
+                    } else {
+                        alert('图谱数据加载失败');
+                    }
                 } else {
                     alert('加载失败：' + (result.error || '未知错误'));
                 }

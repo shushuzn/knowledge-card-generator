@@ -323,15 +323,26 @@
         document.getElementById('loadSampleBtn').addEventListener('click', async () => {
             document.getElementById('loading').classList.remove('hidden');
             try {
+                // 自动切换到"论文引用图谱"
+                const graphTypeSelect = document.getElementById('graphType');
+                graphTypeSelect.value = 'citation';
+                
                 const response = await fetch('/api/load-sample');
                 const result = await response.json();
+                
+                console.log('示例数据响应:', result);
+                
                 if (result.success) {
                     graphData = result.data;
+                    console.log('图谱数据 - 节点:', graphData.nodes.length, '边:', graphData.links.length);
                     renderGraph(graphData);
                     updateStats(result.stats);
-                    document.getElementById('stats').innerHTML += '<div class="mt-2 text-green-600">✅ 已加载 5 篇经典深度学习论文示例</div>';
+                    document.getElementById('stats').innerHTML += '<div class="mt-2 text-green-600">✅ 已加载 5 篇经典深度学习论文示例（论文引用图谱）</div>';
+                } else {
+                    alert('加载失败：' + (result.error || '未知错误'));
                 }
             } catch (error) {
+                console.error('加载错误:', error);
                 alert('加载失败：' + error.message);
             } finally {
                 document.getElementById('loading').classList.add('hidden');

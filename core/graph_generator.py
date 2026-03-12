@@ -101,17 +101,21 @@ class GraphGenerator:
         doi_index = {}  # DOI → paper_id
         title_index = {}  # 标题简化 → paper_id
         
+        print(f"引用图谱：处理 {len(papers)} 篇论文")
+        
         for i, paper in enumerate(papers):
             # DOI 索引
             doi = paper.get('doi', '')
             if doi:
                 doi_index[doi.lower()] = i
+                print(f"  DOI 索引 [{i}]: {doi.lower()}")
             
             # 标题索引 (简化版)
             title = paper.get('title', '')
             if title:
                 simplified = self._simplify_title(title)
                 title_index[simplified] = i
+                print(f"  标题索引 [{i}]: {simplified[:50]}...")
         
         # 2. 创建论文节点
         nodes = []
@@ -129,8 +133,11 @@ class GraphGenerator:
         links = []
         link_set = set()  # 避免重复
         
+        print(f"开始匹配引用关系...")
+        
         for i, paper in enumerate(papers):
             references = paper.get('references', [])
+            print(f"  论文 [{i}] 有 {len(references)} 篇参考文献")
             
             for ref in references:
                 target_id = None
@@ -139,6 +146,7 @@ class GraphGenerator:
                 ref_doi = ref.get('doi', '')
                 if ref_doi:
                     target_id = doi_index.get(ref_doi.lower())
+                    print(f"    DOI 匹配：{ref_doi.lower()} → {target_id}")
                 
                 # 尝试标题匹配
                 if target_id is None:
@@ -146,6 +154,7 @@ class GraphGenerator:
                     if ref_title:
                         simplified = self._simplify_title(ref_title)
                         target_id = title_index.get(simplified)
+                        print(f"    标题匹配：{simplified[:30]}... → {target_id}")
                 
                 # 找到匹配的引用
                 if target_id is not None and target_id != i:
@@ -157,6 +166,9 @@ class GraphGenerator:
                             "value": 1
                         })
                         link_set.add(link_key)
+                        print(f"    ✅ 添加引用边：{i} → {target_id}")
+        
+        print(f"引用图谱完成：{len(nodes)} 节点，{len(links)} 边")
         
         # 确保节点有 name 字段
         for node in nodes:

@@ -87,7 +87,11 @@ HTML_INDEX = """
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>知识卡片生成器 v2.5</title>
+    <meta name="theme-color" content="#667eea">
+    <meta name="description" content="从 PDF 到知识卡片，一键生成">
+    <link rel="manifest" href="/static/manifest.json">
+    <link rel="apple-touch-icon" href="/static/icon-192.png">
+    <title>知识卡片生成器</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
     <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
@@ -359,6 +363,13 @@ HTML_INDEX = """
             document.getElementById('arxiv-usage').textContent = quota.arxiv.requests;
         }
         
+        // 注册 Service Worker (PWA)
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/static/sw.js')
+                .then(reg => console.log('Service Worker registered'))
+                .catch(err => console.log('Service Worker registration failed:', err));
+        }
+        
         loadQuota();
         setInterval(loadQuota, 60000);  // 每分钟刷新
     </script>
@@ -376,6 +387,15 @@ def index():
 def get_quota():
     return jsonify(api_quota)
 
+
+# PWA 静态文件路由
+@app.route('/static/manifest.json')
+def serve_manifest():
+    return send_file(Path(__file__).parent.parent / 'static/manifest.json', mimetype='application/json')
+
+@app.route('/static/sw.js')
+def serve_sw():
+    return send_file(Path(__file__).parent.parent / 'static/sw.js', mimetype='application/javascript')
 
 @app.route('/api/status')
 def get_status():

@@ -1,0 +1,26 @@
+{
+  "name": "知识卡片生成器",
+  "short_name": "知识卡片",
+  "description": "从 PDF 到知识卡片，一键生成",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#667eea",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "https://via.placeholder.com/192x192.png?text=KC",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "https://via.placeholder.com/512x512.png?text=KC",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["productivity", "education"],
+  "lang": "zh-CN"
+}

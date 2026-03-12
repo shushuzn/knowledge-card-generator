@@ -57,6 +57,12 @@
             <!-- 统计信息 -->
             <div id="stats" class="mt-4 text-sm text-gray-600"></div>
             
+            <!-- 搜索框 -->
+            <div class="mt-4">
+                <input type="text" id="searchInput" placeholder="🔍 搜索论文标题/关键词..." 
+                    class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+            </div>
+            
             <!-- 示例数据按钮 -->
             <div class="mt-4">
                 <button id="loadSampleBtn" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded text-sm">
@@ -319,25 +325,31 @@
             localStorage.setItem('hasSeenGraphGuide', 'true');
         });
         
+        // 存储所有图谱数据
+        let allGraphData = {};
+        
         // 加载示例数据
         document.getElementById('loadSampleBtn').addEventListener('click', async () => {
             document.getElementById('loading').classList.remove('hidden');
             try {
-                // 自动切换到"论文引用图谱"
-                const graphTypeSelect = document.getElementById('graphType');
-                graphTypeSelect.value = 'citation';
-                
                 const response = await fetch('/api/load-sample');
                 const result = await response.json();
                 
                 console.log('示例数据响应:', result);
                 
                 if (result.success) {
-                    graphData = result.data;
+                    // 存储所有图谱类型
+                    allGraphData = result.data;
+                    const stats = result.stats;
+                    
+                    // 根据当前选择的类型显示
+                    const graphType = document.getElementById('graphType').value;
+                    graphData = allGraphData[graphType] || allGraphData.citation;
+                    
                     console.log('图谱数据 - 节点:', graphData.nodes.length, '边:', graphData.links.length);
                     renderGraph(graphData);
-                    updateStats(result.stats);
-                    document.getElementById('stats').innerHTML += '<div class="mt-2 text-green-600">✅ 已加载 5 篇经典深度学习论文示例（论文引用图谱）</div>';
+                    updateStats(stats[graphType] || stats.citation);
+                    document.getElementById('stats').innerHTML += '<div class="mt-2 text-green-600">✅ 已加载 5 篇经典深度学习论文示例</div>';
                 } else {
                     alert('加载失败：' + (result.error || '未知错误'));
                 }
@@ -347,6 +359,48 @@
             } finally {
                 document.getElementById('loading').classList.add('hidden');
             }
+        });
+        
+        // 图谱类型切换时重新渲染
+        document.getElementById('graphType').addEventListener('change', () => {
+            const graphType = document.getElementById('graphType').value;
+            if (allGraphData[graphType]) {
+                graphData = allGraphData[graphType];
+                renderGraph(graphData);
+            }
+        });
+        
+        // 搜索功能
+        document.getElementById('searchInput').addEventListener('input', (e) => {
+            const searchTerm = e.target.value.toLowerCase();
+            if (!graphData.nodes || searchTerm.length < 2) {
+                chart.setOption({
+                    series: [{
+                        data: graphData.nodes,
+                        links: graphData.links
+                    }]
+                });
+                return;
+            }
+            
+            // 高亮匹配的节点
+            const highlightedNodes = graphData.nodes.map(node => {
+                const match = node.name.toLowerCase().includes(searchTerm);
+                return {
+                    ...node,
+                    symbolSize: match ? 50 : (node.symbolSize || 30),
+                    itemStyle: {
+                        opacity: match ? 1 : 0.3
+                    }
+                };
+            });
+            
+            chart.setOption({
+                series: [{
+                    data: highlightedNodes,
+                    links: graphData.links
+                }]
+            });
         });
     </script>
 </body>

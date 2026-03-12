@@ -424,11 +424,19 @@ def load_sample():
         citation_graph = graph_gen.generate_citation_graph(papers)
         domain_graph = graph_gen.generate_domain_graph(papers)
         
-        # 默认返回引用图谱
+        # 返回所有图谱类型
         return jsonify({
             "success": True,
-            "data": citation_graph,
-            "stats": citation_graph.get('stats', {}),
+            "data": {
+                "keyword": keyword_graph,
+                "citation": citation_graph,
+                "domain": domain_graph
+            },
+            "stats": {
+                "keyword": keyword_graph.get('stats', {}),
+                "citation": citation_graph.get('stats', {}),
+                "domain": domain_graph.get('stats', {})
+            },
             "message": f"已加载 {len(papers)} 篇示例论文"
         })
         

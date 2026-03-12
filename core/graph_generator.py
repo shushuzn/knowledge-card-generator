@@ -121,13 +121,16 @@ class GraphGenerator:
         nodes = []
         for i, paper in enumerate(papers):
             title = paper.get('title', f'Paper {i}')
+            year = paper.get('year')
             nodes.append({
                 "name": title[:50] + '...' if len(title) > 50 else title,
                 "symbolSize": 30,
                 "category": 0,
                 "paper_id": i,
-                "year": paper.get('year', 'Unknown')
+                "year": year,
+                "value": year  # 用于 tooltip 显示
             })
+            print(f"  节点 [{i}]: {title[:30]}... (年份：{year})")
         
         # 3. 创建引用边 (DOI 匹配 + 标题匹配)
         links = []

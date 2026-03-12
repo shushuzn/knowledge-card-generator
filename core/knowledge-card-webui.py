@@ -457,6 +457,68 @@ def load_stress_test(n_papers):
         }
     })
 
+@app.route('/api/arxiv/search')
+def arxiv_search():
+    """arXiv 搜索 API"""
+    from arxiv_api import ArXivClient
+    
+    query = request.args.get('q', '')
+    max_results = int(request.args.get('limit', 10))
+    
+    if not query:
+        return jsonify({"error": "请输入搜索关键词"}), 400
+    
+    try:
+        client = ArXivClient(max_results=max_results)
+        papers = client.search(query, max_results)
+        
+        return jsonify({
+            "success": True,
+            "count": len(papers),
+            "papers": papers
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/arxiv/download')
+def arxiv_download():
+    """下载 arXiv PDF"""
+    import tempfile
+    from arxiv_api import ArXivClient
+    
+    pdf_url = request.args.get('url', '')
+    arxiv_id = request.args.get('id', '')
+    
+    if not pdf_url:
+        return jsonify({"error": "请提供 PDF URL"}), 400
+    
+    try:
+        # 创建临时文件
+        temp_dir = Path(tempfile.gettempdir()) / 'knowledge-cards' / 'arxiv'
+        temp_dir.mkdir(parents=True, exist_ok=True)
+        
+        pdf_path = temp_dir / f"{arxiv_id or 'paper'}.pdf"
+        
+        client = ArXivClient()
+        if client.download_pdf(pdf_url, str(pdf_path)):
+            # 直接处理 PDF
+            from graph_generator import GraphGenerator
+            from knowledge_card_generator import KnowledgeCardGenerator
+            
+            generator = KnowledgeCardGenerator()
+            result = generator.process_pdf(pdf_path)
+            
+            return jsonify({
+                "success": True,
+                "result": result,
+                "pdf_path": str(pdf_path)
+            })
+        else:
+            return jsonify({"error": "下载失败"}), 500
+            
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 @app.route('/api/load-sample/<field>')
 def load_sample_field(field):
     """加载指定领域的示例数据"""

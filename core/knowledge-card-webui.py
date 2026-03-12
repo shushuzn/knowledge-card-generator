@@ -522,10 +522,14 @@ def download(filename):
 
 
 if __name__ == "__main__":
+    import os
+    # 禁用 Python 3.14+ argparse 颜色输出 (避免 Render 部署错误)
+    os.environ['PYTHON_COLORS'] = '0'
+    
     import argparse
-    parser = argparse.ArgumentParser(description="知识卡片生成器 Web UI")
-    parser.add_argument("--port", type=int, default=5000, help="服务端口 (默认：5000)")
-    parser.add_argument("--host", type=str, default="127.0.0.1", help="监听地址 (默认：127.0.0.1)")
+    parser = argparse.ArgumentParser(description="知识卡片生成器 Web UI", allow_abbrev=False)
+    parser.add_argument("--port", type=int, default=int(os.environ.get('PORT', 5000)), help="服务端口")
+    parser.add_argument("--host", type=str, default="0.0.0.0", help="监听地址")
     args = parser.parse_args()
     
     try:

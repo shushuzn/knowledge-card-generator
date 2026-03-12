@@ -696,15 +696,24 @@
                         allGraphData = result.data;
                         const stats = result.stats;
                         
+                        console.log('领域数据加载成功:', result);
+                        console.log('allGraphData keys:', Object.keys(allGraphData));
+                        console.log('citation graph:', allGraphData.citation);
+                        
                         // 默认显示引用图谱
                         graphData = allGraphData.citation;
-                        renderGraph(graphData);
-                        updateStats(stats.citation);
                         
-                        document.getElementById('stats').innerHTML = `
-                            <div class="text-green-600">✅ 已加载 ${fieldName}</div>
-                            <div>节点：${stats.citation.nodes} | 边：${stats.citation.links}</div>
-                        `;
+                        if (graphData && graphData.nodes && graphData.nodes.length > 0) {
+                            renderGraph(graphData);
+                            updateStats(stats.citation);
+                            
+                            document.getElementById('stats').innerHTML = `
+                                <div class="text-green-600">✅ 已加载 ${fieldName}</div>
+                                <div>节点：${stats.citation.nodes} | 边：${stats.citation.links}</div>
+                            `;
+                        } else {
+                            alert('图谱数据为空！');
+                        }
                     }
                 } catch (error) {
                     alert('加载失败：' + error.message);

@@ -1,0 +1,38 @@
+# 知识卡片生成器 - Python 依赖
+# 版本：v2.5
+# 最后更新：2026-03-11
+
+# 核心依赖
+PyMuPDF>=1.23.0           # PDF 解析
+requests>=2.31.0          # HTTP 请求
+tqdm>=4.66.0              # 进度条
+
+# 图像处理
+Pillow>=10.0.0            # 图像加载/保存
+opencv-python>=4.8.0      # 图像质量过滤
+numpy>=1.24.0             # 数值计算
+
+# 超分辨率 (可选)
+# real-esrgan>=0.1.0      # 需要额外配置
+
+# Web UI (可选)
+Flask>=3.0.0              # Web 框架
+Werkzeug>=3.0.0           # WSGI 工具
+
+# 公式渲染 (可选)
+# latex2mathml>=3.77.0    # LaTeX 转 MathML
+
+# 测试
+pytest>=7.4.0             # 单元测试
+pytest-cov>=4.1.0         # 覆盖率测试
+
+# 开发工具
+black>=23.0.0             # 代码格式化
+flake8>=6.1.0             # 代码检查
+mypy>=1.5.0               # 类型检查
+
+# 文档
+markdown>=3.5.0           # Markdown 处理
+
+# 性能分析
+psutil>=5.9.0             # 系统监控

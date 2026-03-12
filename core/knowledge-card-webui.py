@@ -1,0 +1,543 @@
+#!/usr/bin/env python3
+# knowledge-card-webui.py - 知识卡片生成器 Web 界面 v2.5
+# 用法：py 30-scripts/knowledge-card-webui.py [--port 5000]
+
+import sys
+import io
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+
+from flask import Flask, request, jsonify, send_file, render_template_string
+from werkzeug.utils import secure_filename
+import os
+import json
+import threading
+from pathlib import Path
+from datetime import datetime
+import tempfile
+import shutil
+
+# 导入知识卡片生成器
+sys.path.insert(0, str(Path(__file__).parent))
+import importlib.util
+spec = importlib.util.spec_from_file_location("knowledge_card_generator", Path(__file__).parent / "knowledge-card-generator.py")
+knowledge_card_generator = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(knowledge_card_generator)
+KnowledgeCardGenerator = knowledge_card_generator.KnowledgeCardGenerator
+ReferenceValidator = knowledge_card_generator.ReferenceValidator
+
+app = Flask(__name__)
+app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024  # 100MB max
+
+# 全局状态
+processing_status = {
+    "active": False,
+    "progress": 0,
+    "current_file": "",
+    "total_files": 0,
+    "completed": 0,
+    "failed": 0,
+    "result": None
+}
+
+# 临时目录
+TEMP_DIR = Path(tempfile.gettempdir()) / "knowledge-cards"
+TEMP_DIR.mkdir(parents=True, exist_ok=True)
+
+# API 配额跟踪
+api_quota = {
+    "crossref": {
+        "requests": 0,
+        "limit": 600,  # 10 请求/分钟 × 60 分钟
+        "reset_at": datetime.now().replace(minute=0, second=0, microsecond=0)
+    },
+    "arxiv": {
+        "requests": 0,
+        "limit": 600,
+        "reset_at": datetime.now().replace(minute=0, second=0, microsecond=0)
+    }
+}
+
+
+def track_api_call(api_name: str):
+    """跟踪 API 调用"""
+    if api_name in api_quota:
+        api_quota[api_name]["requests"] += 1
+
+
+def check_quota(api_name: str) -> bool:
+    """检查 API 配额"""
+    if api_name not in api_quota:
+        return True
+    
+    quota = api_quota[api_name]
+    now = datetime.now()
+    
+    # 重置配额 (每小时)
+    if now >= quota["reset_at"]:
+        quota["requests"] = 0
+        quota["reset_at"] = now.replace(minute=0, second=0, microsecond=0)
+        quota["reset_at"] = quota["reset_at"].replace(hour=now.hour + 1)
+    
+    return quota["requests"] < quota["limit"]
+
+
+HTML_INDEX = """
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>知识卡片生成器 v2.5</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        .dropzone {
+            border: 2px dashed #4a9eff;
+            transition: all 0.3s;
+        }
+        .dropzone:hover, .dropzone.dragover {
+            background: #e3f2fd;
+            border-color: #2196f3;
+        }
+        .progress-bar {
+            transition: width 0.3s;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <div class="container mx-auto px-4 py-8 max-w-6xl">
+        <header class="mb-8">
+            <h1 class="text-4xl font-bold text-gray-800 mb-2">📚 知识卡片生成器</h1>
+            <p class="text-gray-600">从学术论文 PDF 自动生成结构化 HTML 知识卡片 v2.5</p>
+        </header>
+
+        <!-- API 配额状态 -->
+        <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h2 class="text-xl font-semibold mb-4">🔌 API 配额状态</h2>
+            <div class="grid grid-cols-2 gap-4">
+                <div class="bg-blue-50 p-4 rounded-lg">
+                    <div class="text-sm text-gray-600">CrossRef API</div>
+                    <div class="text-2xl font-bold text-blue-600">
+                        <span id="crossref-usage">0</span> / 600
+                    </div>
+                    <div class="text-xs text-gray-500">每小时重置</div>
+                </div>
+                <div class="bg-green-50 p-4 rounded-lg">
+                    <div class="text-sm text-gray-600">arXiv API</div>
+                    <div class="text-2xl font-bold text-green-600">
+                        <span id="arxiv-usage">0</span> / 600
+                    </div>
+                    <div class="text-xs text-gray-500">每小时重置</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 上传区域 -->
+        <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h2 class="text-xl font-semibold mb-4">📤 上传 PDF</h2>
+            <div id="dropzone" class="dropzone rounded-lg p-12 text-center cursor-pointer">
+                <input type="file" id="fileInput" accept=".pdf" multiple class="hidden">
+                <div class="text-6xl mb-4">📄</div>
+                <p class="text-lg text-gray-600 mb-2">拖拽 PDF 文件到此处，或点击选择文件</p>
+                <p class="text-sm text-gray-500">支持批量上传 (最大 100MB)</p>
+            </div>
+            <div id="fileList" class="mt-4"></div>
+        </div>
+
+        <!-- 处理选项 -->
+        <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h2 class="text-xl font-semibold mb-4">⚙️ 处理选项</h2>
+            <div class="grid grid-cols-2 gap-4">
+                <label class="flex items-center">
+                    <input type="checkbox" id="validateRefs" checked class="mr-2">
+                    <span>验证参考文献 (CrossRef/arXiv)</span>
+                </label>
+                <label class="flex items-center">
+                    <input type="checkbox" id="exportBibtex" checked class="mr-2">
+                    <span>导出 BibTeX</span>
+                </label>
+                <label class="flex items-center">
+                    <input type="checkbox" id="enableConcurrent" checked class="mr-2">
+                    <span>并发验证 (5 线程)</span>
+                </label>
+                <label class="flex items-center">
+                    <input type="checkbox" id="renderMath" class="mr-2">
+                    <span>渲染 LaTeX 公式 (MathJax)</span>
+                </label>
+            </div>
+            <div class="mt-4">
+                <label class="block text-sm font-medium text-gray-700 mb-2">并发线程数</label>
+                <input type="range" id="workers" min="1" max="10" value="5" class="w-full">
+                <div class="text-sm text-gray-500">当前：<span id="workersValue">5</span> 线程</div>
+            </div>
+        </div>
+
+        <!-- 处理进度 -->
+        <div class="bg-white rounded-lg shadow-md p-6 mb-6" id="progressSection" style="display:none;">
+            <h2 class="text-xl font-semibold mb-4">⏳ 处理进度</h2>
+            <div class="w-full bg-gray-200 rounded-full h-4 mb-4">
+                <div id="progressBar" class="progress-bar bg-blue-600 h-4 rounded-full" style="width: 0%"></div>
+            </div>
+            <div class="grid grid-cols-3 gap-4 text-center">
+                <div>
+                    <div class="text-2xl font-bold text-blue-600" id="progressPercent">0%</div>
+                    <div class="text-sm text-gray-500">进度</div>
+                </div>
+                <div>
+                    <div class="text-2xl font-bold text-green-600" id="completedCount">0</div>
+                    <div class="text-sm text-gray-500">已完成</div>
+                </div>
+                <div>
+                    <div class="text-2xl font-bold text-red-600" id="failedCount">0</div>
+                    <div class="text-sm text-gray-500">失败</div>
+                </div>
+            </div>
+            <div class="mt-4 text-sm text-gray-600">
+                当前文件：<span id="currentFile">-</span>
+            </div>
+        </div>
+
+        <!-- 处理按钮 -->
+        <div class="text-center mb-6">
+            <button id="processBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-lg text-lg" disabled>
+                🚀 开始处理
+            </button>
+        </div>
+
+        <!-- 结果下载 -->
+        <div id="resultSection" class="bg-white rounded-lg shadow-md p-6" style="display:none;">
+            <h2 class="text-xl font-semibold mb-4">✅ 处理完成</h2>
+            <div id="resultStats" class="mb-4"></div>
+            <a id="downloadLink" class="inline-block bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-6 rounded-lg">
+                📥 下载结果 (ZIP)
+            </a>
+        </div>
+    </div>
+
+    <script>
+        // 拖拽上传
+        const dropzone = document.getElementById('dropzone');
+        const fileInput = document.getElementById('fileInput');
+        const fileList = document.getElementById('fileList');
+        const processBtn = document.getElementById('processBtn');
+        
+        let selectedFiles = [];
+
+        dropzone.addEventListener('click', () => fileInput.click());
+        
+        dropzone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropzone.classList.add('dragover');
+        });
+        
+        dropzone.addEventListener('dragleave', () => {
+            dropzone.classList.remove('dragover');
+        });
+        
+        dropzone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropzone.classList.remove('dragover');
+            handleFiles(e.dataTransfer.files);
+        });
+        
+        fileInput.addEventListener('change', (e) => {
+            handleFiles(e.target.files);
+        });
+        
+        function handleFiles(files) {
+            selectedFiles = Array.from(files).filter(f => f.name.endsWith('.pdf'));
+            updateFileList();
+            processBtn.disabled = selectedFiles.length === 0;
+        }
+        
+        function updateFileList() {
+            if (selectedFiles.length === 0) {
+                fileList.innerHTML = '';
+                return;
+            }
+            fileList.innerHTML = '<div class="text-sm text-gray-600">已选择文件:</div>' +
+                selectedFiles.map(f => 
+                    `<div class="flex items-center justify-between bg-gray-50 p-2 mt-1 rounded">
+                        <span>📄 ${f.name}</span>
+                        <span class="text-xs text-gray-500">${(f.size/1024/1024).toFixed(2)} MB</span>
+                    </div>`
+                ).join('');
+        }
+        
+        // 线程数滑块
+        document.getElementById('workers').addEventListener('input', (e) => {
+            document.getElementById('workersValue').textContent = e.target.value;
+        });
+        
+        // 处理按钮
+        processBtn.addEventListener('click', async () => {
+            const formData = new FormData();
+            selectedFiles.forEach(f => formData.append('files', f));
+            formData.append('validate', document.getElementById('validateRefs').checked);
+            formData.append('exportBibtex', document.getElementById('exportBibtex').checked);
+            formData.append('concurrent', document.getElementById('enableConcurrent').checked);
+            formData.append('renderMath', document.getElementById('renderMath').checked);
+            formData.append('workers', document.getElementById('workers').value);
+            
+            document.getElementById('progressSection').style.display = 'block';
+            document.getElementById('resultSection').style.display = 'none';
+            processBtn.disabled = true;
+            
+            // 轮询进度
+            const pollInterval = setInterval(async () => {
+                const response = await fetch('/api/status');
+                const status = await response.json();
+                
+                document.getElementById('progressBar').style.width = status.progress + '%';
+                document.getElementById('progressPercent').textContent = status.progress.toFixed(1) + '%';
+                document.getElementById('completedCount').textContent = status.completed;
+                document.getElementById('failedCount').textContent = status.failed;
+                document.getElementById('currentFile').textContent = status.current_file || '-';
+                
+                if (!status.active && status.result) {
+                    clearInterval(pollInterval);
+                    showResult(status.result);
+                }
+            }, 1000);
+            
+            // 开始处理
+            const response = await fetch('/api/process', {
+                method: 'POST',
+                body: formData
+            });
+            
+            if (!response.ok) {
+                clearInterval(pollInterval);
+                alert('处理失败：' + await response.text());
+                processBtn.disabled = false;
+            }
+        });
+        
+        function showResult(result) {
+            document.getElementById('resultSection').style.display = 'block';
+            document.getElementById('resultStats').innerHTML = `
+                <div class="grid grid-cols-2 gap-4 mb-4">
+                    <div class="bg-green-50 p-4 rounded">
+                        <div class="text-sm text-gray-600">成功</div>
+                        <div class="text-2xl font-bold text-green-600">${result.success}</div>
+                    </div>
+                    <div class="bg-red-50 p-4 rounded">
+                        <div class="text-sm text-gray-600">失败</div>
+                        <div class="text-2xl font-bold text-red-600">${result.failed}</div>
+                    </div>
+                </div>
+                ${result.total_refs ? `
+                <div class="bg-blue-50 p-4 rounded mb-4">
+                    <div class="text-sm text-gray-600">参考文献统计</div>
+                    <div class="grid grid-cols-3 gap-2 mt-2">
+                        <div class="text-center">
+                            <div class="text-lg font-bold text-green-600">${result.verified}</div>
+                            <div class="text-xs text-gray-500">已验证</div>
+                        </div>
+                        <div class="text-center">
+                            <div class="text-lg font-bold text-orange-600">${result.manual}</div>
+                            <div class="text-xs text-gray-500">需人工</div>
+                        </div>
+                        <div class="text-center">
+                            <div class="text-lg font-bold text-red-600">${result.invalid}</div>
+                            <div class="text-xs text-gray-500">验证失败</div>
+                        </div>
+                    </div>
+                </div>
+                ` : ''}
+            `;
+            document.getElementById('downloadLink').href = result.download_url;
+            processBtn.disabled = false;
+        }
+        
+        // 加载 API 配额
+        async function loadQuota() {
+            const response = await fetch('/api/quota');
+            const quota = await response.json();
+            document.getElementById('crossref-usage').textContent = quota.crossref.requests;
+            document.getElementById('arxiv-usage').textContent = quota.arxiv.requests;
+        }
+        
+        loadQuota();
+        setInterval(loadQuota, 60000);  // 每分钟刷新
+    </script>
+</body>
+</html>
+"""
+
+
+@app.route('/')
+def index():
+    return render_template_string(HTML_INDEX)
+
+
+@app.route('/api/quota')
+def get_quota():
+    return jsonify(api_quota)
+
+
+@app.route('/api/status')
+def get_status():
+    return jsonify(processing_status)
+
+
+@app.route('/api/process', methods=['POST'])
+def process_files():
+    global processing_status
+    
+    if 'files' not in request.files:
+        return jsonify({"error": "No files uploaded"}), 400
+    
+    files = request.files.getlist('files')
+    validate = request.form.get('validate', 'false') == 'true'
+    export_bibtex = request.form.get('exportBibtex', 'false') == 'true'
+    concurrent = request.form.get('concurrent', 'false') == 'true'
+    workers = int(request.form.get('workers', 5))
+    
+    # 创建临时工作目录
+    work_dir = TEMP_DIR / datetime.now().strftime("%Y%m%d_%H%M%S")
+    work_dir.mkdir(parents=True, exist_ok=True)
+    
+    # 保存上传的文件
+    pdf_paths = []
+    for f in files:
+        if f.filename.endswith('.pdf'):
+            pdf_path = work_dir / secure_filename(f.filename)
+            f.save(str(pdf_path))
+            pdf_paths.append(pdf_path)
+    
+    # 启动后台处理
+    def process_background():
+        global processing_status
+        processing_status["active"] = True
+        processing_status["total_files"] = len(pdf_paths)
+        processing_status["completed"] = 0
+        processing_status["failed"] = 0
+        
+        results = {
+            "total": len(pdf_paths),
+            "success": 0,
+            "failed": 0,
+            "files": [],
+            "stats": {
+                "total_refs": 0,
+                "verified": 0,
+                "manual": 0,
+                "invalid": 0,
+                "cache_hits": 0,
+                "api_calls": 0
+            }
+        }
+        
+        generator = KnowledgeCardGenerator()
+        generator.validator = ReferenceValidator(max_workers=workers)
+        
+        for i, pdf_path in enumerate(pdf_paths):
+            processing_status["current_file"] = pdf_path.name
+            processing_status["progress"] = (i / len(pdf_paths)) * 100
+            
+            try:
+                # 处理 PDF
+                html = generator.process_pdf(pdf_path)
+                
+                # 验证参考文献
+                if validate:
+                    stats = generator.validate_references(show_progress=False, use_concurrent=concurrent)
+                    results["stats"]["total_refs"] += stats["total"]
+                    results["stats"]["verified"] += stats["verified"]
+                    results["stats"]["manual"] += stats["manual"]
+                    results["stats"]["invalid"] += stats["invalid"]
+                    results["stats"]["cache_hits"] += stats["cache_hits"]
+                    results["stats"]["api_calls"] += stats["api_calls"]
+                    html = generator.generate_html_card()
+                    
+                    # 跟踪 API 调用
+                    track_api_call("crossref")
+                    track_api_call("arxiv")
+                
+                # 保存 HTML
+                output_file = work_dir / f"{pdf_path.stem}.html"
+                output_file.write_text(html, encoding='utf-8')
+                
+                # 导出 BibTeX
+                if export_bibtex:
+                    bibtex = generator.export_bibtex()
+                    bibtex_file = work_dir / f"{pdf_path.stem}.bib"
+                    bibtex_file.write_text(bibtex, encoding='utf-8')
+                
+                results["success"] += 1
+                results["files"].append({
+                    "file": pdf_path.name,
+                    "output": output_file.name,
+                    "status": "success"
+                })
+                
+            except Exception as e:
+                results["failed"] += 1
+                results["files"].append({
+                    "file": pdf_path.name,
+                    "error": str(e),
+                    "status": "failed"
+                })
+            
+            processing_status["completed"] = results["success"]
+            processing_status["failed"] = results["failed"]
+        
+        # 保存统计
+        stats_file = work_dir / "batch-stats.json"
+        stats_file.write_text(json.dumps(results, indent=2, ensure_ascii=False), encoding='utf-8')
+        
+        # 压缩结果
+        import zipfile
+        zip_path = work_dir.parent / f"{work_dir.name}.zip"
+        with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            for file in work_dir.rglob('*'):
+                zipf.write(file, file.relative_to(work_dir))
+        
+        processing_status["active"] = False
+        processing_status["progress"] = 100
+        processing_status["result"] = {
+            "success": results["success"],
+            "failed": results["failed"],
+            "total_refs": results["stats"]["total_refs"],
+            "verified": results["stats"]["verified"],
+            "manual": results["stats"]["manual"],
+            "invalid": results["stats"]["invalid"],
+            "download_url": f"/api/download/{zip_path.name}"
+        }
+    
+    thread = threading.Thread(target=process_background)
+    thread.start()
+    
+    return jsonify({"status": "started"})
+
+
+@app.route('/api/download/<filename>')
+def download(filename):
+    file_path = TEMP_DIR / filename
+    if not file_path.exists():
+        return jsonify({"error": "File not found"}), 404
+    return send_file(str(file_path), as_attachment=True)
+
+
+if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser(description="知识卡片生成器 Web UI")
+    parser.add_argument("--port", type=int, default=5000, help="服务端口 (默认：5000)")
+    parser.add_argument("--host", type=str, default="127.0.0.1", help="监听地址 (默认：127.0.0.1)")
+    args = parser.parse_args()
+    
+    try:
+        print(f"🚀 知识卡片生成器 Web UI v2.5")
+        print(f"   访问地址：http://{args.host}:{args.port}")
+        print(f"   按 Ctrl+C 停止服务")
+    except:
+        pass  # 后台运行时忽略 print 错误
+    
+    # 禁用 Flask banner 避免后台运行错误
+    import logging
+    log = logging.getLogger('werkzeug')
+    log.setLevel(logging.ERROR)
+    
+    app.run(host=args.host, port=args.port, debug=False, threaded=True, use_reloader=False)

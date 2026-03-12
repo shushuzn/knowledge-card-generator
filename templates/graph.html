@@ -681,8 +681,13 @@
             applyFilters();
         });
         
-        // 领域选择按钮事件
-        document.querySelectorAll('.field-btn').forEach(btn => {
+        // 领域选择按钮事件 - 确保 DOM 加载完成后绑定
+        console.log('开始绑定领域按钮事件...');
+        const fieldBtns = document.querySelectorAll('.field-btn');
+        console.log('找到领域按钮数量:', fieldBtns.length);
+        
+        fieldBtns.forEach((btn, index) => {
+            console.log('绑定按钮', index, ':', btn.textContent.trim(), 'data-field:', btn.getAttribute('data-field'));
             btn.addEventListener('click', async () => {
                 const field = btn.getAttribute('data-field');
                 const fieldName = btn.textContent.match(/\(([^)]+)\)/)[1];

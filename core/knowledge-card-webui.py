@@ -404,6 +404,37 @@ def graph_page():
 def get_quota():
     return jsonify(api_quota)
 
+@app.route('/api/load-sample')
+def load_sample():
+    """加载示例数据"""
+    import json
+    sample_path = Path(__file__).parent.parent / 'data' / 'sample_papers.json'
+    
+    try:
+        with open(sample_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        
+        papers = data['papers']
+        
+        # 生成三种图谱
+        from graph_generator import GraphGenerator
+        graph_gen = GraphGenerator()
+        
+        keyword_graph = graph_gen.generate_keyword_graph(papers)
+        citation_graph = graph_gen.generate_citation_graph(papers)
+        domain_graph = graph_gen.generate_domain_graph(papers)
+        
+        # 默认返回引用图谱
+        return jsonify({
+            "success": True,
+            "data": citation_graph,
+            "stats": citation_graph.get('stats', {}),
+            "message": f"已加载 {len(papers)} 篇示例论文"
+        })
+        
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 @app.route('/api/generate-graph', methods=['POST'])
 def generate_graph():
     """生成知识图谱 API"""

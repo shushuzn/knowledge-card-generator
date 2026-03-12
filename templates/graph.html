@@ -46,6 +46,13 @@
             
             <!-- 统计信息 -->
             <div id="stats" class="mt-4 text-sm text-gray-600"></div>
+            
+            <!-- 示例数据按钮 -->
+            <div class="mt-4">
+                <button id="loadSampleBtn" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded text-sm">
+                    📚 加载示例数据 (5 篇经典论文)
+                </button>
+            </div>
         </div>
     </div>
     
@@ -176,6 +183,25 @@
         
         // 窗口大小变化时重绘
         window.addEventListener('resize', () => chart.resize());
+        
+        // 加载示例数据
+        document.getElementById('loadSampleBtn').addEventListener('click', async () => {
+            document.getElementById('loading').classList.remove('hidden');
+            try {
+                const response = await fetch('/api/load-sample');
+                const result = await response.json();
+                if (result.success) {
+                    graphData = result.data;
+                    renderGraph(graphData);
+                    updateStats(result.stats);
+                    document.getElementById('stats').innerHTML += '<div class="mt-2 text-green-600">✅ 已加载 5 篇经典深度学习论文示例</div>';
+                }
+            } catch (error) {
+                alert('加载失败：' + error.message);
+            } finally {
+                document.getElementById('loading').classList.add('hidden');
+            }
+        });
     </script>
 </body>
 </html>

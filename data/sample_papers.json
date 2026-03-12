@@ -1,0 +1,60 @@
+{
+  "papers": [
+    {
+      "id": 1,
+      "title": "Attention Is All You Need",
+      "authors": ["Vaswani, Ashish", "Shazeer, Noam", "Parmar, Niki"],
+      "year": 2017,
+      "doi": "10.48550/arXiv.1706.03762",
+      "abstract": "We propose a new simple network architecture, the Transformer, based solely on attention mechanisms, dispensing with recurrence and convolutions entirely.",
+      "keywords": ["transformer", "attention mechanism", "neural network", "deep learning", "sequence modeling"],
+      "citations": [2, 3],
+      "pdf_url": "https://arxiv.org/pdf/1706.03762.pdf"
+    },
+    {
+      "id": 2,
+      "title": "BERT: Pre-training of Deep Bidirectional Transformers",
+      "authors": ["Devlin, Jacob", "Chang, Ming-Wei", "Lee, Kenton"],
+      "year": 2018,
+      "doi": "10.48550/arXiv.1810.04805",
+      "abstract": "We introduce a new language representation model called BERT, which stands for Bidirectional Encoder Representations from Transformers.",
+      "keywords": ["BERT", "pre-training", "transformer", "NLP", "language model"],
+      "citations": [3, 4],
+      "pdf_url": "https://arxiv.org/pdf/1810.04805.pdf"
+    },
+    {
+      "id": 3,
+      "title": "Deep Residual Learning for Image Recognition",
+      "authors": ["He, Kaiming", "Zhang, Xiangyu", "Ren, Shaoqing"],
+      "year": 2015,
+      "doi": "10.48550/arXiv.1512.03385",
+      "abstract": "We present a residual learning framework to ease the training of networks that are substantially deeper than those used previously.",
+      "keywords": ["residual learning", "CNN", "deep learning", "image recognition", "ResNet"],
+      "citations": [4, 5],
+      "pdf_url": "https://arxiv.org/pdf/1512.03385.pdf"
+    },
+    {
+      "id": 4,
+      "title": "ImageNet Classification with Deep Convolutional Neural Networks",
+      "authors": ["Krizhevsky, Alex", "Sutskever, Ilya", "Hinton, Geoffrey"],
+      "year": 2012,
+      "doi": "10.1145/3065386",
+      "abstract": "We trained a large, deep convolutional neural network to classify the 1.2 million high-resolution images in the ImageNet LSVRC-2010 contest.",
+      "keywords": ["AlexNet", "CNN", "ImageNet", "deep learning", "image classification"],
+      "citations": [],
+      "pdf_url": "https://papers.nips.cc/paper/2012/file/c399862d3b9d6b76c8436e924a68c45b-Paper.pdf"
+    },
+    {
+      "id": 5,
+      "title": "Generative Adversarial Nets",
+      "authors": ["Goodfellow, Ian", "Pouget-Abadie, Jean", "Mirza, Mehdi"],
+      "year": 2014,
+      "doi": "10.48550/arXiv.1406.2661",
+      "abstract": "We propose a new framework for estimating generative models via an adversarial process, in which we simultaneously train two models.",
+      "keywords": ["GAN", "generative model", "adversarial training", "deep learning", "neural network"],
+      "citations": [4],
+      "pdf_url": "https://arxiv.org/pdf/1406.2661.pdf"
+    }
+  ],
+  "description": "5 篇经典深度学习论文示例，包含 Transformer、BERT、ResNet、AlexNet、GAN"
+}

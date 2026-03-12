@@ -523,25 +523,15 @@ def download(filename):
 
 if __name__ == "__main__":
     import os
-    # 禁用 Python 3.14+ argparse 颜色输出 (避免 Render 部署错误)
-    os.environ['PYTHON_COLORS'] = '0'
     
-    import argparse
-    parser = argparse.ArgumentParser(description="知识卡片生成器 Web UI", allow_abbrev=False)
-    parser.add_argument("--port", type=int, default=int(os.environ.get('PORT', 5000)), help="服务端口")
-    parser.add_argument("--host", type=str, default="0.0.0.0", help="监听地址")
-    args = parser.parse_args()
+    # 直接从环境变量读取 (Render 自动设置 PORT)
+    host = "0.0.0.0"
+    port = int(os.environ.get('PORT', 5000))
     
-    try:
-        print(f"🚀 知识卡片生成器 Web UI v2.5")
-        print(f"   访问地址：http://{args.host}:{args.port}")
-        print(f"   按 Ctrl+C 停止服务")
-    except:
-        pass  # 后台运行时忽略 print 错误
-    
-    # 禁用 Flask banner 避免后台运行错误
+    # 禁用 Flask banner
     import logging
     log = logging.getLogger('werkzeug')
     log.setLevel(logging.ERROR)
     
-    app.run(host=args.host, port=args.port, debug=False, threaded=True, use_reloader=False)
+    # 启动服务
+    app.run(host=host, port=port, debug=False, threaded=True, use_reloader=False)

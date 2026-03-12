@@ -382,10 +382,74 @@ HTML_INDEX = """
 def index():
     return render_template_string(HTML_INDEX)
 
+@app.route('/graph')
+def graph_page():
+    """知识图谱可视化页面"""
+    from flask import send_file
+    template_path = Path(__file__).parent.parent / 'templates' / 'graph.html'
+    return send_file(template_path)
+
 
 @app.route('/api/quota')
 def get_quota():
     return jsonify(api_quota)
+
+@app.route('/api/generate-graph', methods=['POST'])
+def generate_graph():
+    """生成知识图谱 API"""
+    from graph_generator import GraphGenerator
+    
+    if 'files' not in request.files:
+        return jsonify({"error": "No files uploaded"}), 400
+    
+    files = request.files.getlist('files')
+    graph_type = request.form.get('graph_type', 'keyword')
+    
+    # 保存上传的文件
+    work_dir = TEMP_DIR / datetime.now().strftime("%Y%m%d_%H%M%S")
+    work_dir.mkdir(parents=True, exist_ok=True)
+    
+    pdf_paths = []
+    for f in files:
+        if f.filename.endswith('.pdf'):
+            pdf_path = work_dir / secure_filename(f.filename)
+            f.save(str(pdf_path))
+            pdf_paths.append(pdf_path)
+    
+    try:
+        # 处理 PDF 提取信息
+        generator = KnowledgeCardGenerator()
+        papers = []
+        
+        for pdf_path in pdf_paths:
+            result = generator.process_pdf(pdf_path)
+            papers.append({
+                'title': result.get('metadata', {}).get('title', ''),
+                'abstract': result.get('abstract', ''),
+                'keywords': result.get('keywords', []),
+                'references': result.get('references', [])
+            })
+        
+        # 生成图谱
+        graph_gen = GraphGenerator()
+        
+        if graph_type == 'keyword':
+            graph_data = graph_gen.generate_keyword_graph(papers)
+        elif graph_type == 'citation':
+            graph_data = graph_gen.generate_citation_graph(papers)
+        elif graph_type == 'domain':
+            graph_data = graph_gen.generate_domain_graph(papers)
+        else:
+            return jsonify({"error": "Invalid graph type"}), 400
+        
+        return jsonify({
+            "success": True,
+            "data": graph_data,
+            "stats": graph_data.get('stats', {})
+        })
+        
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 # PWA 静态文件路由

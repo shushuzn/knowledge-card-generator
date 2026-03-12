@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>知识图谱可视化</title>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        #graph-container {
+            width: 100%;
+            height: calc(100vh - 200px);
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <!-- 顶部控制栏 -->
+    <div class="bg-white shadow-md p-4">
+        <div class="container mx-auto">
+            <h1 class="text-2xl font-bold mb-4">🗺️ 知识图谱可视化</h1>
+            
+            <div class="flex gap-4 flex-wrap">
+                <!-- 图谱类型选择 -->
+                <select id="graphType" class="border rounded px-4 py-2">
+                    <option value="keyword">关键词共现图谱</option>
+                    <option value="citation">论文引用图谱</option>
+                    <option value="domain">领域知识图谱</option>
+                </select>
+                
+                <!-- 上传 PDF -->
+                <label class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded cursor-pointer">
+                    📤 上传 PDF
+                    <input type="file" id="fileInput" accept=".pdf" multiple class="hidden">
+                </label>
+                
+                <!-- 生成图谱 -->
+                <button id="generateBtn" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded" disabled>
+                    🚀 生成图谱
+                </button>
+                
+                <!-- 导出 -->
+                <button id="exportBtn" class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded">
+                    📥 导出图片
+                </button>
+            </div>
+            
+            <!-- 统计信息 -->
+            <div id="stats" class="mt-4 text-sm text-gray-600"></div>
+        </div>
+    </div>
+    
+    <!-- 图谱容器 -->
+    <div class="container mx-auto p-4">
+        <div id="graph-container" class="bg-white rounded-lg shadow-md"></div>
+    </div>
+    
+    <!-- 加载提示 -->
+    <div id="loading" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden">
+        <div class="bg-white p-6 rounded-lg">
+            <div class="animate-spin text-4xl mb-2">🔄</div>
+            <div>正在生成图谱...</div>
+        </div>
+    </div>
+    
+    <script>
+        // 初始化 ECharts
+        const chart = echarts.init(document.getElementById('graph-container'));
+        let graphData = { nodes: [], links: [] };
+        
+        // 文件选择
+        const fileInput = document.getElementById('fileInput');
+        const generateBtn = document.getElementById('generateBtn');
+        let selectedFiles = [];
+        
+        fileInput.addEventListener('change', (e) => {
+            selectedFiles = Array.from(e.target.files);
+            generateBtn.disabled = selectedFiles.length === 0;
+            document.getElementById('stats').textContent = `已选择 ${selectedFiles.length} 篇 PDF`;
+        });
+        
+        // 生成图谱
+        generateBtn.addEventListener('click', async () => {
+            if (selectedFiles.length === 0) return;
+            
+            document.getElementById('loading').classList.remove('hidden');
+            
+            const formData = new FormData();
+            selectedFiles.forEach(file => formData.append('files', file));
+            formData.append('graph_type', document.getElementById('graphType').value);
+            
+            try {
+                const response = await fetch('/api/generate-graph', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    graphData = result.data;
+                    renderGraph(graphData);
+                    updateStats(result.stats);
+                } else {
+                    alert('生成失败：' + result.error);
+                }
+            } catch (error) {
+                alert('请求失败：' + error.message);
+            } finally {
+                document.getElementById('loading').classList.add('hidden');
+            }
+        });
+        
+        // 渲染图谱
+        function renderGraph(data) {
+            const option = {
+                tooltip: {
+                    trigger: 'item',
+                    formatter: '{b}'
+                },
+                legend: [{
+                    data: data.categories?.map(c => c.name) || [],
+                    bottom: 10
+                }],
+                series: [{
+                    type: 'graph',
+                    layout: 'force',
+                    data: data.nodes,
+                    links: data.links,
+                    categories: data.categories,
+                    roam: true,
+                    label: {
+                        show: true,
+                        position: 'right'
+                    },
+                    force: {
+                        repulsion: 300,
+                        edgeLength: 100
+                    },
+                    lineStyle: {
+                        color: 'source',
+                        curveness: 0.3
+                    },
+                    emphasis: {
+                        focus: 'adjacency',
+                        lineStyle: {
+                            width: 4
+                        }
+                    }
+                }]
+            };
+            
+            chart.setOption(option);
+        }
+        
+        // 更新统计
+        function updateStats(stats) {
+            document.getElementById('stats').innerHTML = `
+                节点数：<span class="font-bold text-blue-600">${stats.nodes}</span> | 
+                边数：<span class="font-bold text-green-600">${stats.links}</span> | 
+                处理论文：<span class="font-bold text-purple-600">${stats.papers}</span> 篇
+            `;
+        }
+        
+        // 导出图片
+        document.getElementById('exportBtn').addEventListener('click', () => {
+            const url = chart.getDataURL({
+                type: 'png',
+                pixelRatio: 2,
+                backgroundColor: '#fff'
+            });
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'knowledge-graph.png';
+            a.click();
+        });
+        
+        // 窗口大小变化时重绘
+        window.addEventListener('resize', () => chart.resize());
+    </script>
+</body>
+</html>

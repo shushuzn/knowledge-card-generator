@@ -150,6 +150,13 @@ class GraphGenerator:
                         })
                         link_set.add(link_key)
         
+        # 确保节点有 name 字段
+        for node in nodes:
+            if "name" not in node:
+                node["name"] = f"Paper {node.get('paper_id', 'Unknown')}"
+            if "symbolSize" not in node:
+                node["symbolSize"] = 30
+        
         return {
             "nodes": nodes,
             "links": links,

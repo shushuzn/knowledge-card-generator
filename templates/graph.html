@@ -9,7 +9,8 @@
     <style>
         #graph-container {
             width: 100%;
-            height: calc(100vh - 200px);
+            height: 600px;
+            min-height: 400px;
         }
     </style>
 </head>
@@ -183,6 +184,14 @@
         
         // 渲染图谱
         function renderGraph(data) {
+            console.log('图谱数据:', data);
+            
+            // 检查数据是否为空
+            if (!data.nodes || data.nodes.length === 0) {
+                alert('⚠️ 图谱数据为空！请上传更多 PDF 或点击"加载示例数据"');
+                return;
+            }
+            
             const option = {
                 tooltip: {
                     trigger: 'item',
@@ -201,15 +210,18 @@
                     roam: true,
                     label: {
                         show: true,
-                        position: 'right'
+                        position: 'right',
+                        fontSize: 12
                     },
                     force: {
-                        repulsion: 300,
-                        edgeLength: 100
+                        repulsion: 500,
+                        edgeLength: 150,
+                        gravity: 0.1
                     },
                     lineStyle: {
                         color: 'source',
-                        curveness: 0.3
+                        curveness: 0.3,
+                        width: 1
                     },
                     emphasis: {
                         focus: 'adjacency',
@@ -220,6 +232,7 @@
                 }]
             };
             
+            chart.clear();
             chart.setOption(option);
         }
         

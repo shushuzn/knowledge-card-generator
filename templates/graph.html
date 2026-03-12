@@ -778,13 +778,16 @@
                 return;
             }
             
+            console.log('搜索:', query);
             document.getElementById('arxivResults').innerHTML = '<div class="text-center py-8">🔄 搜索中...</div>';
             
             try {
                 const response = await fetch(`/api/arxiv/search?q=${encodeURIComponent(query)}&limit=10`);
                 const result = await response.json();
                 
-                if (result.success && result.papers.length > 0) {
+                console.log('API 响应:', result);
+                
+                if (result.success && result.papers && result.papers.length > 0) {
                     selectedPapers = [];
                     document.getElementById('selectedCount').textContent = '0';
                     document.getElementById('arxivProcessSelected').disabled = true;

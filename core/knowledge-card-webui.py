@@ -457,9 +457,48 @@ def load_stress_test(n_papers):
         }
     })
 
+@app.route('/api/load-sample/<field>')
+def load_sample_field(field):
+    """加载指定领域的示例数据"""
+    import json
+    sample_path = Path(__file__).parent.parent / 'data' / 'sample_papers_multi_field.json'
+    
+    try:
+        with open(sample_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        
+        if field not in data['fields']:
+            return jsonify({"error": f"未知领域：{field}"}), 400
+        
+        papers = data['fields'][field]['papers']
+        
+        from graph_generator import GraphGenerator
+        graph_gen = GraphGenerator()
+        
+        keyword_graph = graph_gen.generate_keyword_graph(papers)
+        citation_graph = graph_gen.generate_citation_graph(papers)
+        
+        return jsonify({
+            "success": True,
+            "field": field,
+            "field_name": data['fields'][field]['name'],
+            "data": {
+                "keyword": keyword_graph,
+                "citation": citation_graph
+            },
+            "stats": {
+                "keyword": keyword_graph.get('stats', {}),
+                "citation": citation_graph.get('stats', {})
+            },
+            "message": f"已加载 {len(papers)} 篇{data['fields'][field]['name']}论文"
+        })
+        
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 @app.route('/api/load-sample')
 def load_sample():
-    """加载示例数据"""
+    """加载示例数据 (默认 AI 领域)"""
     import json
     sample_path = Path(__file__).parent.parent / 'data' / 'sample_papers.json'
     

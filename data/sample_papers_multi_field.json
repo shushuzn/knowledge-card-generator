@@ -1,0 +1,105 @@
+{
+  "fields": {
+    "AI": {
+      "name": "人工智能",
+      "papers": [
+        {
+          "id": "ai-1",
+          "title": "Attention Is All You Need",
+          "doi": "10.48550/arXiv.1706.03762",
+          "year": 2017,
+          "keywords": ["transformer", "attention mechanism", "neural network", "deep learning"],
+          "references": []
+        },
+        {
+          "id": "ai-2",
+          "title": "BERT: Pre-training of Deep Bidirectional Transformers",
+          "doi": "10.48550/arXiv.1810.04805",
+          "year": 2018,
+          "keywords": ["BERT", "pre-training", "transformer", "NLP", "language model"],
+          "references": [{"title": "Attention Is All You Need", "doi": "10.48550/arXiv.1706.03762"}]
+        },
+        {
+          "id": "ai-3",
+          "title": "Generative Adversarial Nets",
+          "doi": "10.48550/arXiv.1406.2661",
+          "year": 2014,
+          "keywords": ["GAN", "generative model", "adversarial training", "deep learning"],
+          "references": []
+        }
+      ]
+    },
+    "Materials": {
+      "name": "材料科学",
+      "papers": [
+        {
+          "id": "mat-1",
+          "title": "Electric Field Effect in Atomically Thin Carbon Films",
+          "doi": "10.1126/science.1102896",
+          "year": 2004,
+          "keywords": ["graphene", "2D materials", "electric field", "carbon"],
+          "references": []
+        },
+        {
+          "id": "mat-2",
+          "title": "Laser-Induced Graphene: From Discovery to Translation",
+          "doi": "10.1002/adma.202008432",
+          "year": 2021,
+          "keywords": ["LIG", "laser-induced graphene", "flexible electronics", "sensors"],
+          "references": [{"title": "Electric Field Effect in Atomically Thin Carbon Films", "doi": "10.1126/science.1102896"}]
+        },
+        {
+          "id": "mat-3",
+          "title": "MXenes: A New Family of Two-Dimensional Materials",
+          "doi": "10.1021/nn402875d",
+          "year": 2013,
+          "keywords": ["MXene", "2D materials", "carbides", "energy storage"],
+          "references": []
+        }
+      ]
+    },
+    "Biology": {
+      "name": "生物医学",
+      "papers": [
+        {
+          "id": "bio-1",
+          "title": "CRISPR-Cas9: A Revolutionary Tool for Genome Editing",
+          "doi": "10.1038/nature12581",
+          "year": 2013,
+          "keywords": ["CRISPR", "gene editing", "Cas9", "genome engineering"],
+          "references": []
+        },
+        {
+          "id": "bio-2",
+          "title": "Single-Cell RNA Sequencing: A Powerful Tool for Biomedical Research",
+          "doi": "10.1038/nmeth.4463",
+          "year": 2017,
+          "keywords": ["single-cell", "RNA-seq", "transcriptomics", "biomarker"],
+          "references": []
+        }
+      ]
+    },
+    "Physics": {
+      "name": "物理学",
+      "papers": [
+        {
+          "id": "phys-1",
+          "title": "Observation of Gravitational Waves from a Binary Black Hole Merger",
+          "doi": "10.1103/PhysRevLett.116.061102",
+          "year": 2016,
+          "keywords": ["gravitational waves", "LIGO", "black hole", "general relativity"],
+          "references": []
+        },
+        {
+          "id": "phys-2",
+          "title": "Quantum Supremacy Using a Programmable Superconducting Processor",
+          "doi": "10.1038/s41586-019-1666-5",
+          "year": 2019,
+          "keywords": ["quantum computing", "quantum supremacy", "superconducting", "qubits"],
+          "references": []
+        }
+      ]
+    }
+  },
+  "description": "多领域示例论文 (AI/材料/生物/物理)"
+}

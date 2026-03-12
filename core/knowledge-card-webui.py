@@ -96,6 +96,10 @@ HTML_INDEX = """
     <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
     <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     <style>
+        .nav-link { color: #667eea; text-decoration: none; font-weight: bold; }
+        .nav-link:hover { text-decoration: underline; }
+    </style>
+    <style>
         .dropzone {
             border: 2px dashed #4a9eff;
             transition: all 0.3s;
@@ -111,6 +115,12 @@ HTML_INDEX = """
 </head>
 <body class="bg-gray-100 min-h-screen">
     <div class="container mx-auto px-4 py-8 max-w-6xl">
+        <!-- 导航栏 -->
+        <nav class="mb-6 flex gap-4">
+            <a href="/" class="nav-link">📚 知识卡片</a>
+            <a href="/graph" class="nav-link">🗺️ 知识图谱</a>
+        </nav>
+        
         <header class="mb-8">
             <h1 class="text-4xl font-bold text-gray-800 mb-2">📚 知识卡片生成器</h1>
             <p class="text-gray-600">从学术论文 PDF 自动生成结构化 HTML 知识卡片 v2.5</p>

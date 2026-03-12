@@ -81,10 +81,51 @@
                 <div class="mt-2 text-gray-500">💡 节点大小 = 引用次数 | 颜色 = 发表年份</div>
             </div>
             
-            <!-- 搜索框 -->
-            <div class="mt-4">
-                <input type="text" id="searchInput" placeholder="🔍 搜索论文标题/关键词..." 
-                    class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <!-- 搜索和过滤面板 -->
+            <div class="mt-4 bg-gray-50 p-4 rounded-lg">
+                <div class="flex gap-2 mb-3">
+                    <input type="text" id="searchInput" placeholder="🔍 搜索论文标题/关键词..." 
+                        class="flex-1 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <button id="clearSearchBtn" class="px-4 py-2 bg-gray-300 hover:bg-gray-400 rounded-lg">
+                        清除
+                    </button>
+                </div>
+                
+                <div class="grid grid-cols-2 gap-2 text-sm">
+                    <div>
+                        <label class="block text-gray-600 mb-1">年份范围:</label>
+                        <div class="flex gap-2">
+                            <input type="number" id="yearFrom" placeholder="从" 
+                                class="w-20 px-2 py-1 border rounded" value="2010">
+                            <input type="number" id="yearTo" placeholder="到" 
+                                class="w-20 px-2 py-1 border rounded" value="2026">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-gray-600 mb-1">领域:</label>
+                        <select id="fieldFilter" class="w-full px-2 py-1 border rounded">
+                            <option value="all">全部领域</option>
+                            <option value="NLP">自然语言处理</option>
+                            <option value="CV">计算机视觉</option>
+                            <option value="ML">机器学习</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="mt-3 flex gap-2">
+                    <button id="applyFilterBtn" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg">
+                        应用过滤
+                    </button>
+                    <button id="resetFilterBtn" class="flex-1 bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg">
+                        重置
+                    </button>
+                </div>
+                
+                <!-- 搜索结果列表 -->
+                <div id="searchResults" class="mt-3 hidden">
+                    <div class="font-bold text-sm mb-2">搜索结果 (<span id="resultCount">0</span>):</div>
+                    <div id="resultsList" class="max-h-40 overflow-y-auto text-sm space-y-1"></div>
+                </div>
             </div>
             
             <!-- 示例数据按钮 -->
@@ -437,36 +478,133 @@
         });
         
         // 搜索功能
-        document.getElementById('searchInput').addEventListener('input', (e) => {
-            const searchTerm = e.target.value.toLowerCase();
-            if (!graphData.nodes || searchTerm.length < 2) {
-                chart.setOption({
-                    series: [{
-                        data: graphData.nodes,
-                        links: graphData.links
-                    }]
-                });
-                return;
-            }
+        let currentFilter = {
+            search: '',
+            yearFrom: 2010,
+            yearTo: 2026,
+            field: 'all'
+        };
+        
+        function applyFilters() {
+            if (!graphData.nodes) return;
             
-            // 高亮匹配的节点
-            const highlightedNodes = graphData.nodes.map(node => {
-                const match = node.name.toLowerCase().includes(searchTerm);
+            const filteredNodes = graphData.nodes.map((node, index) => {
+                let match = true;
+                let reason = [];
+                
+                // 搜索匹配
+                if (currentFilter.search) {
+                    const searchLower = currentFilter.search.toLowerCase();
+                    const nameMatch = node.name.toLowerCase().includes(searchLower);
+                    if (!nameMatch) match = false;
+                }
+                
+                // 年份过滤
+                if (node.year) {
+                    if (node.year < currentFilter.yearFrom || node.year > currentFilter.yearTo) {
+                        match = false;
+                    }
+                }
+                
+                // 领域过滤 (简单关键词匹配)
+                if (currentFilter.field !== 'all') {
+                    const fieldKeywords = {
+                        'NLP': ['bert', 'nlp', 'language', 'transformer'],
+                        'CV': ['imagenet', 'cnn', 'resnet', 'alexnet', 'image'],
+                        'ML': ['gan', 'generative', 'deep learning']
+                    };
+                    const keywords = fieldKeywords[currentFilter.field];
+                    const hasKeyword = keywords.some(kw => 
+                        node.name.toLowerCase().includes(kw)
+                    );
+                    if (!hasKeyword) match = false;
+                }
+                
                 return {
                     ...node,
-                    symbolSize: match ? 50 : (node.symbolSize || 30),
+                    symbolSize: match ? 40 + (node.value || 0) * 10 : 20,
                     itemStyle: {
-                        opacity: match ? 1 : 0.3
-                    }
+                        opacity: match ? 1 : 0.2
+                    },
+                    matched: match
                 };
             });
             
+            // 显示搜索结果
+            const matchedCount = filteredNodes.filter(n => n.matched).length;
+            displaySearchResults(filteredNodes.filter(n => n.matched), matchedCount);
+            
             chart.setOption({
                 series: [{
-                    data: highlightedNodes,
+                    data: filteredNodes,
                     links: graphData.links
                 }]
             });
+        }
+        
+        function displaySearchResults(results, count) {
+            const resultsDiv = document.getElementById('searchResults');
+            const resultsList = document.getElementById('resultsList');
+            const resultCount = document.getElementById('resultCount');
+            
+            if (count === 0) {
+                resultsDiv.classList.add('hidden');
+                return;
+            }
+            
+            resultCount.textContent = count;
+            resultsList.innerHTML = results.map(node => `
+                <div class="p-2 bg-white rounded border hover:bg-blue-50 cursor-pointer" 
+                     onclick="highlightNode('${node.name}')">
+                    <div class="font-bold">${node.name.substring(0, 50)}${node.name.length > 50 ? '...' : ''}</div>
+                    <div class="text-xs text-gray-500">${node.year ? '年份：' + node.year : ''}</div>
+                </div>
+            `).join('');
+            
+            resultsDiv.classList.remove('hidden');
+        }
+        
+        // 点击搜索结果高亮节点
+        window.highlightNode = function(nodeName) {
+            const node = graphData.nodes.find(n => n.name === nodeName);
+            if (node) {
+                chart.dispatchAction({
+                    type: 'focusNodeAdjacency',
+                    seriesIndex: 0,
+                    name: nodeName
+                });
+            }
+        };
+        
+        // 搜索输入
+        document.getElementById('searchInput').addEventListener('input', (e) => {
+            currentFilter.search = e.target.value;
+            applyFilters();
+        });
+        
+        // 清除搜索
+        document.getElementById('clearSearchBtn').addEventListener('click', () => {
+            document.getElementById('searchInput').value = '';
+            currentFilter.search = '';
+            applyFilters();
+        });
+        
+        // 应用过滤
+        document.getElementById('applyFilterBtn').addEventListener('click', () => {
+            currentFilter.yearFrom = parseInt(document.getElementById('yearFrom').value) || 2010;
+            currentFilter.yearTo = parseInt(document.getElementById('yearTo').value) || 2026;
+            currentFilter.field = document.getElementById('fieldFilter').value;
+            applyFilters();
+        });
+        
+        // 重置过滤
+        document.getElementById('resetFilterBtn').addEventListener('click', () => {
+            document.getElementById('yearFrom').value = 2010;
+            document.getElementById('yearTo').value = 2026;
+            document.getElementById('fieldFilter').value = 'all';
+            document.getElementById('searchInput').value = '';
+            currentFilter = { search: '', yearFrom: 2010, yearTo: 2026, field: 'all' };
+            applyFilters();
         });
     </script>
 </body>

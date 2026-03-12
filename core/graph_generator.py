@@ -13,6 +13,7 @@ from collections import Counter
 import sys
 sys.path.insert(0, str(Path(__file__).parent))
 from knowledge_card_generator import KnowledgeCardGenerator
+from keyword_extractor import KeywordExtractor
 
 
 class GraphGenerator:
@@ -20,28 +21,11 @@ class GraphGenerator:
     
     def __init__(self):
         self.generator = KnowledgeCardGenerator()
-        # 常见停用词 (中文 + 英文)
-        self.stopwords = {
-            'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for',
-            'of', 'with', 'by', 'from', 'is', 'are', 'was', 'were', 'be', 'been',
-            '的', '了', '和', '与', '及', '或', '在', '是', '有', '等', '一个'
-        }
+        self.extractor = KeywordExtractor()
     
     def extract_keywords(self, text: str, top_n: int = 50) -> List[str]:
-        """提取关键词"""
-        # 简单分词 (按空格和标点)
-        words = re.findall(r'\b\w+\b|\w+', text.lower())
-        
-        # 过滤停用词和短词
-        keywords = [
-            w for w in words 
-            if w not in self.stopwords 
-            and len(w) > 2
-        ]
-        
-        # 词频统计
-        counter = Counter(keywords)
-        return [word for word, _ in counter.most_common(top_n)]
+        """提取关键词 (TF-IDF + TextRank)"""
+        return self.extractor.extract_combined(text, top_n=top_n)
     
     def generate_keyword_graph(self, papers: List[Dict]) -> Dict:
         """

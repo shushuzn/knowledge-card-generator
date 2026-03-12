@@ -766,24 +766,31 @@
         
         // arXiv 搜索功能
         let selectedPapers = [];
-        const arxivModal = document.getElementById('arxivModal');
         
-        document.getElementById('arxivSearchBtn').addEventListener('click', () => {
-            console.log('打开 arXiv 模态框');
-            arxivModal.classList.remove('hidden');
-            arxivModal.style.display = 'flex';
-            console.log('模态框状态：display=' + arxivModal.style.display + ', hidden=' + arxivModal.classList.contains('hidden'));
+        // 打开模态框
+        document.getElementById('arxivSearchBtn').addEventListener('click', function() {
+            const modal = document.getElementById('arxivModal');
+            modal.style.display = 'flex';
+            setTimeout(() => modal.classList.remove('hidden'), 10);
         });
         
-        // 关闭模态框按钮
-        arxivModal.querySelector('button[onclick*="arxivModal"]').addEventListener('click', () => {
-            arxivModal.classList.add('hidden');
-            arxivModal.style.display = 'none';
+        // 关闭模态框 (X 按钮)
+        document.querySelector('#arxivModal button[onclick*="arxivModal"]').addEventListener('click', function() {
+            const modal = document.getElementById('arxivModal');
+            modal.classList.add('hidden');
+            setTimeout(() => modal.style.display = 'none', 300);
         });
         
-        document.getElementById('arxivSearchExecute').addEventListener('click', async () => {
+        // 点击模态框背景关闭
+        document.getElementById('arxivModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                this.classList.add('hidden');
+                setTimeout(() => this.style.display = 'none', 300);
+            }
+        });
+        
+        document.getElementById('arxivSearchExecute').addEventListener('click', function() {
             const query = document.getElementById('arxivQuery').value.trim();
-            console.log('搜索查询:', query);
             
             if (!query) {
                 alert('请输入搜索关键词');
@@ -791,72 +798,60 @@
             }
             
             const resultsDiv = document.getElementById('arxivResults');
-            resultsDiv.innerHTML = '<div class="text-center py-8">🔄 搜索中...</div>';
+            resultsDiv.innerHTML = '<div class="text-center py-8"><div class="animate-spin text-4xl mb-2">🔄</div><div>搜索中...</div></div>';
             
-            try {
-                console.log('发送 API 请求...');
-                const response = await fetch(`/api/arxiv/search?q=${encodeURIComponent(query)}&limit=10`);
-                console.log('API 响应状态:', response.status);
-                
-                const result = await response.json();
-                console.log('API 响应数据:', result);
-                
-                if (result.success && result.papers && result.papers.length > 0) {
-                    console.log('找到', result.papers.length, '篇论文');
+            fetch(`/api/arxiv/search?q=${encodeURIComponent(query)}&limit=10`)
+                .then(response => response.json())
+                .then(result => {
+                    if (!result.success || !result.papers || result.papers.length === 0) {
+                        resultsDiv.innerHTML = '<div class="text-center py-8 text-gray-500">未找到相关论文</div>';
+                        return;
+                    }
                     
                     selectedPapers = [];
                     document.getElementById('selectedCount').textContent = '0';
                     document.getElementById('arxivProcessSelected').disabled = true;
                     
-                    const html = result.papers.map((paper, i) => {
-                        console.log('论文', i, ':', paper.title?.substring(0, 50));
-                        return `
-                        <div class="p-3 border rounded hover:bg-blue-50 cursor-pointer" data-index="${i}" data-url="${paper.pdf_url || ''}" data-id="${paper.arxiv_id || ''}">
-                            <div class="font-bold text-sm mb-1">${paper.title || '无标题'}</div>
+                    resultsDiv.innerHTML = result.papers.map((paper, i) => `
+                        <div class="paper-item p-3 border rounded hover:bg-blue-50 cursor-pointer mb-2" data-i="${i}">
+                            <div class="font-bold text-sm mb-1">${escapeHtml(paper.title || '无标题')}</div>
                             <div class="text-xs text-gray-600">作者：${(paper.authors || []).slice(0, 3).join(', ')}${(paper.authors || []).length > 3 ? ' 等' : ''}</div>
                             <div class="text-xs text-gray-500">arXiv: ${paper.arxiv_id || 'N/A'} | ${(paper.published || '').substring(0, 10)}</div>
                         </div>
-                    `}).join('');
+                    `).join('');
                     
-                    console.log('生成 HTML:', html.substring(0, 100));
-                    resultsDiv.innerHTML = html;
-                    
-                    // 添加点击选择事件
-                    setTimeout(() => {
-                        const resultDivs = resultsDiv.querySelectorAll('div[data-index]');
-                        console.log('找到结果 div 数量:', resultDivs.length);
-                        
-                        resultDivs.forEach((div, idx) => {
-                            div.addEventListener('click', function() {
-                                console.log('点击论文', idx);
-                                this.classList.toggle('bg-blue-100');
-                                this.classList.toggle('border-blue-500');
-                                
-                                const url = this.getAttribute('data-url');
-                                const id = this.getAttribute('data-id');
-                                
-                                const index = selectedPapers.findIndex(p => p.url === url);
-                                if (index >= 0) {
-                                    selectedPapers.splice(index, 1);
-                                } else {
-                                    selectedPapers.push({url, id});
-                                }
-                                
-                                console.log('已选论文数:', selectedPapers.length);
-                                document.getElementById('selectedCount').textContent = selectedPapers.length;
-                                document.getElementById('arxivProcessSelected').disabled = selectedPapers.length === 0;
-                            });
+                    // 绑定点击事件
+                    resultsDiv.querySelectorAll('.paper-item').forEach(div => {
+                        div.addEventListener('click', function() {
+                            this.classList.toggle('bg-blue-100');
+                            this.classList.toggle('border-blue-500');
+                            
+                            const i = parseInt(this.getAttribute('data-i'));
+                            const paper = result.papers[i];
+                            const idx = selectedPapers.findIndex(p => p.id === paper.arxiv_id);
+                            
+                            if (idx >= 0) {
+                                selectedPapers.splice(idx, 1);
+                            } else {
+                                selectedPapers.push({url: paper.pdf_url, id: paper.arxiv_id});
+                            }
+                            
+                            document.getElementById('selectedCount').textContent = selectedPapers.length;
+                            document.getElementById('arxivProcessSelected').disabled = selectedPapers.length === 0;
                         });
-                    }, 100);
-                } else {
-                    console.log('未找到论文');
-                    resultsDiv.innerHTML = '<div class="text-center py-8 text-gray-500">未找到相关论文</div>';
-                }
-            } catch (error) {
-                console.error('搜索错误:', error);
-                resultsDiv.innerHTML = `<div class="text-center py-8 text-red-500">搜索失败：${error.message}</div>`;
-            }
+                    });
+                })
+                .catch(error => {
+                    resultsDiv.innerHTML = `<div class="text-center py-8 text-red-500">搜索失败：${escapeHtml(error.message)}</div>`;
+                });
         });
+        
+        // HTML 转义函数
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
         
         document.getElementById('arxivProcessSelected').addEventListener('click', async () => {
             if (selectedPapers.length === 0) return;

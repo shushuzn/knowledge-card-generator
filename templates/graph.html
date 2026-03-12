@@ -57,6 +57,11 @@
                 <button id="arxivSearchBtn" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded">
                     🔍 从 arXiv 导入
                 </button>
+                
+                <!-- 异步任务按钮 -->
+                <button id="asyncTaskBtn" class="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded">
+                    📊 异步任务
+                </button>
             </div>
             
             <!-- 统计信息 -->
@@ -64,6 +69,31 @@
             
             <!-- 性能监控 -->
             <div id="performance" class="mt-2 text-xs text-gray-400"></div>
+            
+            <!-- 异步任务模态框 -->
+            <div id="asyncModal" class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center hidden z-50">
+                <div class="bg-white rounded-lg p-6 max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-2xl font-bold">📊 异步任务管理</h2>
+                        <button onclick="document.getElementById('asyncModal').classList.add('hidden')" class="text-gray-500 hover:text-gray-700 text-2xl">×</button>
+                    </div>
+                    
+                    <!-- 任务列表 -->
+                    <div id="taskList" class="space-y-2 mb-4">
+                        <div class="text-center py-8 text-gray-500">点击"刷新"加载任务列表</div>
+                    </div>
+                    
+                    <!-- 操作按钮 -->
+                    <div class="flex gap-2">
+                        <button onclick="window.loadTasks()" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded">
+                            🔄 刷新
+                        </button>
+                        <button onclick="window.testAsyncTask()" class="flex-1 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded">
+                            🧪 测试异步任务
+                        </button>
+                    </div>
+                </div>
+            </div>
             
             <!-- 图例说明 -->
             <div class="mt-4 bg-gray-50 p-3 rounded-lg text-xs text-gray-600">
@@ -844,16 +874,11 @@
             document.getElementById('loading').classList.remove('hidden');
             
             try {
-                // 处理选中的论文
                 for (const paper of selectedPapers) {
                     const response = await fetch(`/api/arxiv/download?url=${encodeURIComponent(paper.url)}&id=${paper.id}`);
                     const result = await response.json();
-                    
-                    if (result.success) {
-                        console.log('处理完成:', paper.id);
-                    }
+                    if (result.success) console.log('处理完成:', paper.id);
                 }
-                
                 alert(`✅ 已处理 ${selectedPapers.length} 篇论文`);
                 selectedPapers = [];
             } catch (error) {
@@ -862,6 +887,79 @@
                 document.getElementById('loading').classList.add('hidden');
             }
         });
+        
+        // ==================== 异步任务功能 ====================
+        
+        // 打开异步任务模态框
+        document.getElementById('asyncTaskBtn').addEventListener('click', function() {
+            document.getElementById('asyncModal').style.display = 'flex';
+            document.getElementById('asyncModal').classList.remove('hidden');
+            window.loadTasks();
+        });
+        
+        // 加载任务列表
+        window.loadTasks = function() {
+            fetch('/api/async/task-list')
+                .then(r => r.json())
+                .then(data => {
+                    const listDiv = document.getElementById('taskList');
+                    if (data.tasks && data.tasks.length > 0) {
+                        listDiv.innerHTML = data.tasks.map(t => `
+                            <div class="p-3 border rounded ${t.status === 'completed' ? 'bg-green-50' : t.status === 'running' ? 'bg-blue-50' : 'bg-gray-50'}">
+                                <div class="flex justify-between items-center">
+                                    <div>
+                                        <div class="font-bold">${t.task_id}</div>
+                                        <div class="text-xs text-gray-600">状态：${t.status} | 进度：${t.progress}%</div>
+                                        <div class="text-xs text-gray-500">创建：${t.created_at?.substring(0, 16)||''}</div>
+                                    </div>
+                                    <div class="flex gap-2">
+                                        ${t.status === 'running' ? `<button onclick="window.cancelTask('${t.task_id}')" class="px-3 py-1 bg-red-500 text-white rounded text-xs">取消</button>` : ''}
+                                        <button onclick="navigator.clipboard.writeText('${t.task_id}');alert('已复制')" class="px-3 py-1 bg-gray-500 text-white rounded text-xs">复制 ID</button>
+                                    </div>
+                                </div>
+                            </div>
+                        `).join('');
+                    } else {
+                        listDiv.innerHTML = '<div class="text-center py-8 text-gray-500">暂无任务</div>';
+                    }
+                })
+                .catch(e => {
+                    document.getElementById('taskList').innerHTML = '<div class="text-center py-8 text-red-500">加载失败：' + e.message + '</div>';
+                });
+        };
+        
+        // 测试异步任务
+        window.testAsyncTask = function() {
+            const taskId = 'test-' + Date.now();
+            fetch('/api/async/generate-graph', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    task_id: taskId,
+                    pdf_paths: ['/tmp/test1.pdf', '/tmp/test2.pdf'],
+                    graph_type: 'keyword'
+                })
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    alert('任务已提交：' + taskId);
+                    setTimeout(window.loadTasks, 1000);
+                }
+            })
+            .catch(e => alert('提交失败：' + e.message));
+        };
+        
+        // 取消任务
+        window.cancelTask = function(taskId) {
+            fetch('/api/async/task-cancel/' + taskId, {method: 'POST'})
+                .then(r => r.json())
+                .then(data => {
+                    alert(data.success ? '已取消' : '取消失败');
+                    window.loadTasks();
+                })
+                .catch(e => alert('错误：' + e.message));
+        };
     </script>
 </body>
 </html>

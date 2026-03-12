@@ -25,6 +25,11 @@ spec.loader.exec_module(knowledge_card_generator)
 KnowledgeCardGenerator = knowledge_card_generator.KnowledgeCardGenerator
 ReferenceValidator = knowledge_card_generator.ReferenceValidator
 
+# 导入异步执行器
+sys.path.insert(0, str(Path(__file__).parent.parent.parent / '30-scripts-脚本工具'))
+from async_executor import AsyncExecutor, example_knowledge_graph_task
+async_executor = AsyncExecutor(max_workers=3)
+
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024  # 100MB max
 
@@ -518,6 +523,52 @@ def arxiv_download():
             
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+# ==================== 异步任务 API ====================
+
+@app.route('/api/async/generate-graph', methods=['POST'])
+def async_generate_graph():
+    """异步生成知识图谱"""
+    data = request.json
+    task_id = data.get('task_id', f'task-{datetime.now().strftime("%Y%m%d%H%M%S")}')
+    pdf_paths = data.get('pdf_paths', [])
+    graph_type = data.get('graph_type', 'keyword')
+    
+    # 提交异步任务
+    async_executor.submit(task_id, example_knowledge_graph_task, pdf_paths)
+    
+    return jsonify({
+        "success": True,
+        "task_id": task_id,
+        "message": "任务已提交，后台处理中"
+    })
+
+@app.route('/api/async/task-status/<task_id>', methods=['GET'])
+def task_status(task_id):
+    """查询任务状态"""
+    status = async_executor.get_status(task_id)
+    if status:
+        return jsonify({
+            "success": True,
+            "status": status
+        })
+    return jsonify({"error": "任务不存在"}), 404
+
+@app.route('/api/async/task-cancel/<task_id>', methods=['POST'])
+def task_cancel(task_id):
+    """取消任务"""
+    success = async_executor.cancel(task_id)
+    return jsonify({"success": success})
+
+@app.route('/api/async/task-list', methods=['GET'])
+def task_list():
+    """列出所有任务"""
+    status = request.args.get('status')
+    tasks = async_executor.list_tasks(status)
+    return jsonify({
+        "success": True,
+        "tasks": tasks
+    })
 
 @app.route('/api/load-sample/<field>')
 def load_sample_field(field):

@@ -198,7 +198,7 @@
             
             <!-- 操作按钮 -->
             <div class="mt-4 flex gap-2">
-                <button id="arxivSearchExecute" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg">
+                <button onclick="window.searchArxiv()" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg">
                     🔍 搜索
                 </button>
                 <button id="arxivProcessSelected" class="flex-1 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg" disabled>
@@ -789,9 +789,9 @@
             }
         });
         
-        document.getElementById('arxivSearchExecute').addEventListener('click', function() {
+        // arXiv 搜索 - 使用 onclick 直接绑定
+        window.searchArxiv = function() {
             const query = document.getElementById('arxivQuery').value.trim();
-            
             if (!query) {
                 alert('请输入搜索关键词');
                 return;
@@ -801,57 +801,41 @@
             resultsDiv.innerHTML = '<div class="text-center py-8"><div class="animate-spin text-4xl mb-2">🔄</div><div>搜索中...</div></div>';
             
             fetch(`/api/arxiv/search?q=${encodeURIComponent(query)}&limit=10`)
-                .then(response => response.json())
+                .then(r => r.json())
                 .then(result => {
                     if (!result.success || !result.papers || result.papers.length === 0) {
                         resultsDiv.innerHTML = '<div class="text-center py-8 text-gray-500">未找到相关论文</div>';
                         return;
                     }
                     
+                    window._arxivPapers = result.papers;
                     selectedPapers = [];
                     document.getElementById('selectedCount').textContent = '0';
                     document.getElementById('arxivProcessSelected').disabled = true;
                     
-                    resultsDiv.innerHTML = result.papers.map((paper, i) => `
-                        <div class="paper-item p-3 border rounded hover:bg-blue-50 cursor-pointer mb-2" data-i="${i}">
-                            <div class="font-bold text-sm mb-1">${escapeHtml(paper.title || '无标题')}</div>
-                            <div class="text-xs text-gray-600">作者：${(paper.authors || []).slice(0, 3).join(', ')}${(paper.authors || []).length > 3 ? ' 等' : ''}</div>
-                            <div class="text-xs text-gray-500">arXiv: ${paper.arxiv_id || 'N/A'} | ${(paper.published || '').substring(0, 10)}</div>
-                        </div>
-                    `).join('');
-                    
-                    // 绑定点击事件
-                    resultsDiv.querySelectorAll('.paper-item').forEach(div => {
-                        div.addEventListener('click', function() {
-                            this.classList.toggle('bg-blue-100');
-                            this.classList.toggle('border-blue-500');
-                            
-                            const i = parseInt(this.getAttribute('data-i'));
-                            const paper = result.papers[i];
-                            const idx = selectedPapers.findIndex(p => p.id === paper.arxiv_id);
-                            
-                            if (idx >= 0) {
-                                selectedPapers.splice(idx, 1);
-                            } else {
-                                selectedPapers.push({url: paper.pdf_url, id: paper.arxiv_id});
-                            }
-                            
-                            document.getElementById('selectedCount').textContent = selectedPapers.length;
-                            document.getElementById('arxivProcessSelected').disabled = selectedPapers.length === 0;
-                        });
-                    });
+                    resultsDiv.innerHTML = result.papers.map((p, i) => 
+                        `<div onclick="window.selectPaper(this, ${i})" class="p-3 border rounded hover:bg-blue-50 cursor-pointer mb-2">
+                            <div class="font-bold text-sm">${p.title||''}</div>
+                            <div class="text-xs text-gray-600">${(p.authors||[]).slice(0,3).join(', ')||''}</div>
+                            <div class="text-xs text-gray-500">arXiv: ${p.arxiv_id||''}</div>
+                        </div>`
+                    ).join('');
                 })
-                .catch(error => {
-                    resultsDiv.innerHTML = `<div class="text-center py-8 text-red-500">搜索失败：${escapeHtml(error.message)}</div>`;
+                .catch(e => {
+                    resultsDiv.innerHTML = '<div class="text-center py-8 text-red-500">错误：' + e.message + '</div>';
                 });
-        });
+        };
         
-        // HTML 转义函数
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
-        }
+        window.selectPaper = function(div, i) {
+            div.classList.toggle('bg-blue-100');
+            div.classList.toggle('border-blue-500');
+            const p = window._arxivPapers[i];
+            const idx = selectedPapers.findIndex(x => x.id === p.arxiv_id);
+            if (idx >= 0) selectedPapers.splice(idx, 1);
+            else selectedPapers.push({url: p.pdf_url, id: p.arxiv_id});
+            document.getElementById('selectedCount').textContent = selectedPapers.length;
+            document.getElementById('arxivProcessSelected').disabled = selectedPapers.length === 0;
+        };
         
         document.getElementById('arxivProcessSelected').addEventListener('click', async () => {
             if (selectedPapers.length === 0) return;

@@ -404,6 +404,59 @@ def graph_page():
 def get_quota():
     return jsonify(api_quota)
 
+@app.route('/api/load-stress-test/<int:n_papers>')
+def load_stress_test(n_papers):
+    """加载压力测试数据"""
+    import random
+    
+    # 生成测试数据
+    fields = {
+        'NLP': ['BERT', 'transformer', 'attention', 'NLP', 'language model'],
+        'CV': ['CNN', 'ResNet', 'AlexNet', 'ImageNet', 'image classification'],
+        'ML': ['deep learning', 'neural network', 'optimization', 'gradient']
+    }
+    
+    papers = []
+    for i in range(n_papers):
+        field = random.choice(list(fields.keys()))
+        keywords = random.sample(fields[field], min(3, len(fields[field])))
+        year = random.randint(2010, 2024)
+        
+        references = []
+        if i > 0:
+            n_refs = random.randint(0, min(3, i))
+            for idx in random.sample(range(i), n_refs):
+                references.append({"title": f"Paper {idx}", "doi": f"10.1000/test{idx}"})
+        
+        papers.append({
+            "id": i + 1,
+            "title": f"Paper {i + 1}: {random.choice(keywords)} Study",
+            "doi": f"10.1000/test{i}",
+            "year": year,
+            "keywords": keywords,
+            "references": references
+        })
+    
+    # 生成图谱
+    from graph_generator import GraphGenerator
+    graph_gen = GraphGenerator()
+    
+    start_time = __import__('time').time()
+    citation_graph = graph_gen.generate_citation_graph(papers)
+    gen_time = __import__('time').time() - start_time
+    
+    return jsonify({
+        "success": True,
+        "data": {"citation": citation_graph},
+        "stats": {"citation": citation_graph.get('stats', {})},
+        "performance": {
+            "papers": n_papers,
+            "generation_time": round(gen_time, 3),
+            "nodes": citation_graph['stats']['nodes'],
+            "links": citation_graph['stats']['links']
+        }
+    })
+
 @app.route('/api/load-sample')
 def load_sample():
     """加载示例数据"""

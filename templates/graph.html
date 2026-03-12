@@ -57,6 +57,9 @@
             <!-- 统计信息 -->
             <div id="stats" class="mt-4 text-sm text-gray-600"></div>
             
+            <!-- 性能监控 -->
+            <div id="performance" class="mt-2 text-xs text-gray-400"></div>
+            
             <!-- 图例说明 -->
             <div class="mt-4 bg-gray-50 p-3 rounded-lg text-xs text-gray-600">
                 <div class="font-bold mb-2">📊 图例说明</div>
@@ -128,10 +131,13 @@
                 </div>
             </div>
             
-            <!-- 示例数据按钮 -->
-            <div class="mt-4">
+            <!-- 性能测试按钮 -->
+            <div class="mt-4 flex gap-2">
                 <button id="loadSampleBtn" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded text-sm">
-                    📚 加载示例数据 (5 篇经典论文)
+                    📚 加载示例数据 (5 篇)
+                </button>
+                <button id="stressTestBtn" class="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded text-sm">
+                    ⚡ 性能测试 (100 篇)
                 </button>
             </div>
         </div>
@@ -264,12 +270,19 @@
         
         // 渲染图谱
         function renderGraph(data) {
+            const startTime = performance.now();
             console.log('图谱数据:', data);
             
             // 检查数据是否为空
             if (!data.nodes || data.nodes.length === 0) {
                 alert('⚠️ 图谱数据为空！请上传更多 PDF 或点击"加载示例数据"');
                 return;
+            }
+            
+            // 性能警告
+            if (data.nodes.length > 500) {
+                const confirmRender = confirm(`图谱包含 ${data.nodes.length} 个节点，渲染可能较慢。是否继续？`);
+                if (!confirmRender) return;
             }
             
             // 优化节点样式
@@ -344,6 +357,14 @@
             
             chart.clear();
             chart.setOption(option);
+            
+            // 性能监控
+            const endTime = performance.now();
+            const renderTime = (endTime - startTime).toFixed(2);
+            document.getElementById('performance').textContent = 
+                `⚡ 渲染时间：${renderTime}ms | 节点数：${data.nodes.length} | 边数：${data.links.length}`;
+            
+            console.log(`渲染完成：${renderTime}ms`);
         }
         
         // 更新统计
@@ -422,6 +443,43 @@
         
         // 存储所有图谱数据
         let allGraphData = {};
+        
+        // 性能测试
+        document.getElementById('stressTestBtn').addEventListener('click', async () => {
+            const nPapers = prompt('输入测试论文数量 (10-1000):', '100');
+            if (!nPapers) return;
+            
+            const n = parseInt(nPapers);
+            if (n < 10 || n > 1000) {
+                alert('请输入 10-1000 之间的数字');
+                return;
+            }
+            
+            document.getElementById('loading').classList.remove('hidden');
+            try {
+                const response = await fetch(`/api/load-stress-test/${n}`);
+                const result = await response.json();
+                
+                if (result.success) {
+                    allGraphData = result.data;
+                    const stats = result.stats;
+                    const perf = result.performance;
+                    
+                    graphData = allGraphData.citation;
+                    renderGraph(graphData);
+                    updateStats(stats.citation);
+                    
+                    document.getElementById('stats').innerHTML = `
+                        <div class="text-green-600">✅ 性能测试完成</div>
+                        <div>生成时间：${perf.generation_time}秒 | 节点：${perf.nodes} | 边：${perf.links}</div>
+                    `;
+                }
+            } catch (error) {
+                alert('测试失败：' + error.message);
+            } finally {
+                document.getElementById('loading').classList.add('hidden');
+            }
+        });
         
         // 加载示例数据
         document.getElementById('loadSampleBtn').addEventListener('click', async () => {

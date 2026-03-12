@@ -528,7 +528,11 @@ if __name__ == "__main__":
     host = "0.0.0.0"
     port = int(os.environ.get('PORT', 5000))
     
-    # 禁用 Flask banner
+    # 禁用 Flask CLI banner (Python 3.14 兼容)
+    import flask.cli
+    flask.cli.show_server_banner = lambda *args: None
+    
+    # 禁用 Werkzeug 日志
     import logging
     log = logging.getLogger('werkzeug')
     log.setLevel(logging.ERROR)
